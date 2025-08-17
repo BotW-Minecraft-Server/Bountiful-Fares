@@ -10,6 +10,8 @@ import net.minecraft.item.*;
 import net.minecraft.sound.BlockSoundGroup;
 import net.minecraft.sound.SoundCategory;
 import net.minecraft.util.ActionResult;
+import net.minecraft.util.Hand;
+import net.minecraft.util.TypedActionResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraft.world.event.GameEvent;
@@ -23,24 +25,46 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(Item.class)
 public class PumpkinPieItemMixin {
 
-    @Inject(method = "useOnBlock", at = @At("HEAD"), cancellable = true)
-    public void bf_useOnBlock(ItemUsageContext context, CallbackInfoReturnable<ActionResult> cir) {
-        if (context.getStack().isOf(Items.PUMPKIN_PIE) && BountifulFares.CONFIG.enablePlaceablePumpkinPie) {
-            ActionResult ar = place(new ItemPlacementContext(context));
-            cir.setReturnValue(ar);
+    // This may cause connector failing mixin
+//    @Inject(method = "useOnBlock", at = @At("HEAD"), cancellable = true)
+//    public void bf_useOnBlock(ItemUsageContext context, CallbackInfoReturnable<ActionResult> cir) {
+//        if (context.getStack().isOf(Items.PUMPKIN_PIE) && BountifulFares.CONFIG.enablePlaceablePumpkinPie) {
+//            ActionResult ar = place(new ItemPlacementContext(context));
+//            cir.setReturnValue(ar);
+//        }
+//    }
+//
+//    @ModifyVariable(method = "use", at = @At(
+//            value = "STORE",
+//            target = "Lnet/minecraft/item/ItemStack;get(Lnet/minecraft/component/ComponentType;)Ljava/lang/Object;",
+//            shift = At.Shift.AFTER)
+//    )
+//    private FoodComponent bf_pumpkinPiePass(FoodComponent original) {
+//        if (original == FoodComponents.PUMPKIN_PIE && BountifulFares.CONFIG.enablePlaceablePumpkinPie) {
+//            return null;
+//        }
+//        return original;
+//    }
+
+    // I use better and safer mixin instead
+    @Inject(method = "use", at = @At("HEAD"), cancellable = true)
+    private void bf_use(World world, PlayerEntity user, Hand hand,
+                        CallbackInfoReturnable<TypedActionResult<ItemStack>> cir) {
+        ItemStack stack = user.getStackInHand(hand);
+        if (stack.isOf(Items.PUMPKIN_PIE) && BountifulFares.CONFIG.enablePlaceablePumpkinPie) {
+            // 不吃：让“空气右键”不触发进食，保持物品不变即可
+            // PASS 会把处理权交回去（不会吃）；也可以 CONSUME_PARTIAL 视具体需求
+            cir.setReturnValue(TypedActionResult.pass(stack));
         }
     }
 
-    @ModifyVariable(method = "use", at = @At(
-            value = "STORE",
-            target = "Lnet/minecraft/item/ItemStack;get(Lnet/minecraft/component/ComponentType;)Ljava/lang/Object;",
-            shift = At.Shift.AFTER)
-    )
-    private FoodComponent bf_pumpkinPiePass(FoodComponent original) {
-        if (original == FoodComponents.PUMPKIN_PIE && BountifulFares.CONFIG.enablePlaceablePumpkinPie) {
-            return null;
+    @Inject(method = "useOnBlock", at = @At("HEAD"), cancellable = true)
+    private void bf_useOnBlock(ItemUsageContext context,
+                               CallbackInfoReturnable<ActionResult> cir) {
+        if (context.getStack().isOf(Items.PUMPKIN_PIE) && BountifulFares.CONFIG.enablePlaceablePumpkinPie) {
+            ActionResult ar = place(new ItemPlacementContext(context));
+            cir.setReturnValue(ar); // 直接走放置逻辑
         }
-        return original;
     }
 
     @Unique
